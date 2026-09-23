@@ -24,7 +24,11 @@
   },
   "scripts": {
     "dev": "bun run --hot src/index.ts",
-    "build": "bun build src/index.ts --outdir ./dist"
+    "build": "bun build src/index.ts --outdir ./dist",
+    "test": "bun test",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio"
   },
   "prisma": {
     "seed": "bun run prisma/seed.ts"
