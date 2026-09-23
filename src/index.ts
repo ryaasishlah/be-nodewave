@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { swaggerUI } from "@hono/swagger-ui";
+import { openApiSpec } from "./docs/openapi";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { errorHandler } from "./middlewares/error.middleware";
 import { projectRoutes } from "./modules/projects/project.routes";
@@ -10,7 +12,7 @@ import { standupRoutes } from "./modules/standup/standup.routes";
 
 const app = new Hono();
 
-// 1. Middlewares global (selalu paling atas)
+// Global middlewares
 app.use("*", logger());
 app.use(
   "*",
@@ -21,18 +23,24 @@ app.use(
   })
 );
 
-// 2. Global Error Handler
+// Global error handler
 app.onError(errorHandler);
 
-// 3. Root & Health Endpoints
+// Health and root discovery endpoints
 app.get("/", (c) =>
   c.json({
     name: "NodeWave Deliverables Management API",
     version: "1.0.0",
     status: "online",
+    documentation: "/docs",
+    openapi: "/docs/openapi.json",
     endpoints: {
       health: "/health",
       auth: "/api/auth",
+      projects: "/api/projects",
+      tasks: "/api/tasks",
+      auditLogs: "/api/audit-logs",
+      standupSummary: "/api/standup-summary",
     },
   })
 );
@@ -45,13 +53,16 @@ app.get("/health", (c) =>
   })
 );
 
-// 4. Mount Routes
+// Swagger Documentation
+app.get("/docs/openapi.json", (c) => c.json(openApiSpec));
+app.get("/docs", swaggerUI({ url: "/docs/openapi.json" }));
+
+// API route registrations
 app.route("/api/auth", authRoutes);
 app.route("/api/projects", projectRoutes);
 app.route("/api/tasks", taskRoutes);
 app.route("/api/audit-logs", auditRoutes);
 app.route("/api/standup-summary", standupRoutes);
-
 
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 
