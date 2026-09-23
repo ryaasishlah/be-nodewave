@@ -16,7 +16,7 @@ standupRoutes.get("/:projectId", async (c) => {
     return c.json({ success: false, message: "Forbidden: Client Guest cannot view internal standup summary" }, 403);
   }
 
-  // Tarik log 24 jam terakhir yang statusnya berubah ke DONE
+  // Fetch done status transitions from the last 24 hours
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
@@ -34,7 +34,7 @@ standupRoutes.get("/:projectId", async (c) => {
     },
   });
 
-  // Tarik task yang saat ini statusnya BLOCKED
+  // Fetch currently blocked tasks
   const currentBlockedTasks = await prisma.task.findMany({
     where: {
       projectId,
@@ -51,7 +51,7 @@ standupRoutes.get("/:projectId", async (c) => {
     },
   });
 
-  // Kelompokkan per departemen
+  // Aggregate deliverables and blockers per department
   const departments = [Department.UIUX, Department.FRONTEND, Department.BACKEND, Department.PRODUCT_MANAGEMENT];
 
   const summary: Record<string, { completedYesterday: any[]; blockedToday: any[] }> = {};

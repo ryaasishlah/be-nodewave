@@ -8,10 +8,10 @@ export class ProjectService {
     const whereClause: any = { deletedAt: null };
 
     if (user.role === Role.CLIENT_GUEST) {
-      // Multi-tenant isolation: Client Guest hanya melihat project miliknya
+      // Tenant isolation: Client guest can only access own project
       whereClause.clientGuestId = user.id;
     } else if (user.role === Role.INTERNAL_TEAM) {
-      // Internal team hanya melihat project tempat dia ditugaskan
+      // Internal team can only access assigned projects
       whereClause.members = {
         some: { userId: user.id },
       };
@@ -58,7 +58,7 @@ export class ProjectService {
       throw new Error("Project not found");
     }
 
-    // Validasi Akses Multi-Tenant
+    // Multi-tenant authorization check
     if (user.role === Role.CLIENT_GUEST && project.clientGuestId !== user.id) {
       throw new Error("Forbidden: You do not have access to this project");
     }
@@ -70,7 +70,7 @@ export class ProjectService {
       }
     }
 
-    // Hitung Metrik Agregat (Wajib untuk Client Guest & PM)
+    // Aggregate progress metrics computation
     const taskCondition: any = {
       projectId: project.id,
       deletedAt: null,
@@ -91,7 +91,7 @@ export class ProjectService {
     const progressPercentage =
       totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-    // Untuk Client Guest: Sembunyikan identitas member internal
+    // Tenant data masking: omit internal project members
     const sanitizedMembers =
       user.role === Role.CLIENT_GUEST ? [] : project.members;
 
@@ -107,7 +107,7 @@ export class ProjectService {
   }
 
   static async createProject(data: CreateProjectInput, user: AuthUser) {
-    // Hanya PM yang boleh membuat project
+    // Access control: restricted to Product Managers
     if (user.role !== Role.PRODUCT_MANAGER) {
       throw new Error("Forbidden: Only Product Managers can create projects");
     }

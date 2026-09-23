@@ -13,7 +13,7 @@ auditRoutes.get("/", async (c) => {
   const projectId = c.req.query("projectId");
   const taskId = c.req.query("taskId");
 
-  // Client Guest dilarang melihat audit trail internal
+  // Restrict client guests from viewing internal audit history
   if (user.role === Role.CLIENT_GUEST) {
     return c.json({ success: false, message: "Forbidden: Client Guest cannot view internal audit trail" }, 403);
   }

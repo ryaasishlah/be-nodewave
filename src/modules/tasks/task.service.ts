@@ -6,7 +6,7 @@ import { BuildQueryFilter } from "@nodewave/prisma-ezfilter";
 
 export class TaskService {
   static async listTasks(projectId: string, queryParams: any, user: AuthUser) {
-    // 1. Verifikasi hak akses project
+    // Verify project access permissions
     const project = await prisma.project.findFirst({
       where: { id: projectId, deletedAt: null },
       include: { members: true },
@@ -23,7 +23,7 @@ export class TaskService {
       if (!isMember) throw new Error("Forbidden: You are not assigned to this project");
     }
 
-    // 2. Query builder dengan @nodewave/prisma-ezfilter
+    // Dynamic query building via @nodewave/prisma-ezfilter
     const queryBuilder = new BuildQueryFilter();
     const filterInput = {
       filters: queryParams.filters ? JSON.parse(queryParams.filters) : undefined,
@@ -37,14 +37,14 @@ export class TaskService {
 
     const builtQuery = queryBuilder.build(filterInput);
 
-    // Sisipkan filter wajib: projectId & deletedAt: null
+    // Mandatory scope: project ID and non-deleted records
     const baseWhere: any = {
       projectId,
       deletedAt: null,
       ...builtQuery.query.where,
     };
 
-    // Client Guest hanya bisa melihat task yang berflag isClientVisible
+    // Enforce visibility filter for client guest tenant
     if (user.role === Role.CLIENT_GUEST) {
       baseWhere.isClientVisible = true;
     }
@@ -91,9 +91,9 @@ export class TaskService {
       },
     });
 
-    // 3. Dependency Check & Data Masking untuk Client Guest
+    // Dependency evaluation and client data masking
     return tasks.map((task) => {
-      // Evaluasi apakah task terblokir (jika ada prerequisite yang belum DONE)
+      // Check whether task has unmet prerequisites
       const hasUnfinishedPrerequisites = task.prerequisites.some(
         (p) => p.prerequisiteTask.status !== TaskStatus.DONE
       );
@@ -103,7 +103,7 @@ export class TaskService {
           ? TaskStatus.BLOCKED
           : task.status;
 
-      // DATA MASKING: Jika Client Guest, samarkan identitas engineer internal
+      // Apply tenant data masking for client guest view
       if (user.role === Role.CLIENT_GUEST) {
         return {
           id: task.id,
@@ -112,8 +112,8 @@ export class TaskService {
           description: task.description,
           status: dynamicStatus,
           isClientVisible: true,
-          assignee: null, // Identitas engineer disembunyikan
-          department: "INTERNAL", // Department internal disamarkan
+          assignee: null,
+          department: "INTERNAL",
           version: task.version,
           prerequisites: [],
           attachments: [],
@@ -175,7 +175,7 @@ export class TaskService {
         throw new Error("Forbidden: You do not have access to this task");
       }
 
-      // Masking data untuk client
+      // Apply tenant data masking
       return {
         id: task.id,
         projectId: task.projectId,
@@ -214,7 +214,7 @@ export class TaskService {
         },
       });
 
-      // Hubungkan prerequisites jika ada
+      // Attach prerequisite task dependencies
       if (data.prerequisiteIds && data.prerequisiteIds.length > 0) {
         await tx.taskDependency.createMany({
           data: data.prerequisiteIds.map((prereqId) => ({
@@ -224,7 +224,7 @@ export class TaskService {
         });
       }
 
-      // Catat Audit Log Immutable
+      // Record immutable audit trail
       await tx.auditLog.create({
         data: {
           projectId: data.projectId,
@@ -257,7 +257,7 @@ export class TaskService {
 
     if (!currentTask) throw new Error("Task not found");
 
-    // 1. CONCURRENCY & OPTIMISTIC LOCKING (Pencegahan Race Condition)
+    // Optimistic locking check to prevent concurrency race conditions
     if (currentTask.version !== data.version) {
       const conflictError: any = new Error(
         `Conflict detected: This task was modified by another user. Current version is ${currentTask.version}, but you submitted version ${data.version}. Please refresh to get latest state.`
@@ -266,8 +266,8 @@ export class TaskService {
       throw conflictError;
     }
 
-    // 2. STATE-BASED ROLE RESTRICTIONS (ABAC + RBAC)
-    // Aturan 2A: Internal Engineer dilarang mengubah judul / deskripsi (hanya boleh ubah status & attachment)
+    // Role and state-based access control restrictions
+    // Restrict internal engineers from altering task title or description
     if (user.role === Role.INTERNAL_TEAM) {
       if (data.title !== undefined || data.description !== undefined) {
         throw new Error(
@@ -276,7 +276,7 @@ export class TaskService {
       }
     }
 
-    // Aturan 2B: PM DILARANG memindahkan task dari IN_PROGRESS ke DONE (hanya engineer eksekutor yang boleh menyelesaikan)
+    // Prevent PMs from directly marking in-progress tasks as done
     if (
       user.role === Role.PRODUCT_MANAGER &&
       currentTask.status === TaskStatus.IN_PROGRESS &&
@@ -287,8 +287,8 @@ export class TaskService {
       );
     }
 
-    // 3. INTER-TASK DEPENDENCY ENFORCEMENT
-    // Jika status ingin diubah ke IN_PROGRESS, pastikan SEMUA task prasyarat sudah DONE
+    // Inter-task dependency validation
+    // Require all prerequisites to be completed before moving to in-progress
     if (data.status === TaskStatus.IN_PROGRESS) {
       const unfinishedPrerequisite = currentTask.prerequisites.find(
         (p) => p.prerequisiteTask.status !== TaskStatus.DONE
@@ -303,11 +303,11 @@ export class TaskService {
       }
     }
 
-    // 4. IMMUTABLE AUDIT TRAIL & TRANSACTION UPDATE
+    // Execute atomic update and persist immutable audit trail
     const updated = await prisma.$transaction(async (tx) => {
       const auditEntries: any[] = [];
 
-      // Catat perbedaan setiap kolom yang berubah
+      // Record field-level diffs
       if (data.status && data.status !== currentTask.status) {
         auditEntries.push({
           projectId: currentTask.projectId,
@@ -368,7 +368,7 @@ export class TaskService {
         await tx.auditLog.createMany({ data: auditEntries });
       }
 
-      // Update Task dengan penambahan version (+1)
+      // Increment task version for optimistic locking
       const res = await tx.task.update({
         where: { id: taskId },
         data: {
@@ -399,7 +399,7 @@ export class TaskService {
 
     if (!task) throw new Error("Task not found");
 
-    // SOFT DELETE: Tidak ada hard delete sesuai brief
+    // Soft delete record with timestamp audit entry
     await prisma.$transaction(async (tx) => {
       await tx.task.update({
         where: { id: taskId },
