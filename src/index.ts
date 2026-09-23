@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { errorHandler } from "./middlewares/error.middleware";
 import { projectRoutes } from "./modules/projects/project.routes";
+import { taskRoutes } from "./modules/tasks/task.routes";
 
 const app = new Hono();
 
@@ -45,6 +46,7 @@ app.get("/health", (c) =>
 // 4. Mount Routes
 app.route("/api/auth", authRoutes);
 app.route("/api/projects", projectRoutes);
+app.route("/api/tasks", taskRoutes);
 
 
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
