@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PRODUCT_MANAGER
+  INTERNAL_TEAM
+  CLIENT_GUEST
+}
+
+enum Department {
+  PRODUCT_MANAGEMENT
+  UIUX
+  FRONTEND
+  BACKEND
+  CLIENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+model User {
+  id         String     @id @default(uuid())
+  email      String     @unique
+  password   String
+  name       String
+  role       Role
+  department Department
+  avatarUrl  String?
+  deletedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  assignedTasks  Task[]           @relation("TaskAssignee")
+  clientProjects Project[]        @relation("ClientGuestProjects")
+  projectMembers ProjectMember[]
+  auditLogs      AuditLog[]
+  attachments    TaskAttachment[]
+
+  @@map("users")
+}
+
+model Project {
+  id            String    @id @default(uuid())
+  name          String
+  description   String?
+  clientGuestId String?
+  clientGuest   User?     @relation("ClientGuestProjects", fields: [clientGuestId], references: [id])
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  members   ProjectMember[]
+  tasks     Task[]
+  auditLogs AuditLog[]
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  projectId       String
+  title           String
+  description     String
+  department      Department
+  status          TaskStatus @default(TODO)
+  isClientVisible Boolean    @default(false)
+  assigneeId      String?
+  version         Int        @default(1) // Kunci Optimistic Locking & Pencegahan Concurrency Conflict
+  deletedAt       DateTime? // Soft Delete
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  // Dependensi: Task ini bergantung pada task lain (prerequisites)
+  prerequisites TaskDependency[] @relation("DependentTask")
+
+  // Dependensi: Task lain yang bergantung pada task ini (dependents)
+  dependentTasks TaskDependency[] @relation("PrerequisiteTask")
+
+  attachments TaskAttachment[]
+  auditLogs   AuditLog[]
+
+  @@map("tasks")
+}
+
+model TaskDependency {
+  id                 String   @id @default(uuid())
+  taskId             String // Task yang bergantung (misal Task C: Frontend Slicing)
+  prerequisiteTaskId String // Task prasyarat yang wajib DONE (misal Task A: UI Design)
+  createdAt          DateTime @default(now())
+
+  task             Task @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  prerequisiteTask Task @relation("PrerequisiteTask", fields: [prerequisiteTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, prerequisiteTaskId])
+  @@map("task_dependencies")
+}
+
+model TaskAttachment {
+  id           String    @id @default(uuid())
+  taskId       String
+  uploadedById String
+  fileName     String
+  fileUrl      String
+  fileSize     Int
+  fileType     String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@map("task_attachments")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  projectId     String
+  taskId        String?
+  userId        String
+  action        String // CREATE, UPDATE, STATUS_CHANGE, SOFT_DELETE
+  entityType    String   @default("TASK")
+  entityId      String
+  changedColumn String
+  oldValue      String?
+  newValue      String?
+  timestamp     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
