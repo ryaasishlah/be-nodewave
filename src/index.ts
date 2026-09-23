@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { errorHandler } from "./middlewares/error.middleware";
+import { projectRoutes } from "./modules/projects/project.routes";
 
 const app = new Hono();
 
@@ -43,6 +44,8 @@ app.get("/health", (c) =>
 
 // 4. Mount Routes
 app.route("/api/auth", authRoutes);
+app.route("/api/projects", projectRoutes);
+
 
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 
