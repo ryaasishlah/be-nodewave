@@ -1,0 +1,36 @@
+{
+  "name": "be-nodewave",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/bun": "latest",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.2",
+    "prisma": "6.19.3"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "@nodewave/prisma-ezfilter": "^0.2.1",
+    "@prisma/client": "6.19.3",
+    "bcryptjs": "^3.0.3",
+    "hono": "^4.13.8",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.6.5"
+  },
+  
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist"
+  },
+
+    "prisma": {
+    "seed": "bun run prisma/seed.ts"
+  }
+
+
+
+}
